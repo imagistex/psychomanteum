@@ -1,0 +1,17 @@
+{
+  "probe_set": "anchor",
+  "version": "0.1.0",
+  "template": "Describe {keyword}.",
+  "note": "Shared and FIXED across all facets — run by every facet verbatim so the same prompts compare head-to-head (Sexton-on-'loss' vs Foucault-on-'loss'). This is NOT a 'neutral' set: nothing is neutral, and each lineage inflects these universals differently — that difference under an identical prompt is exactly the comparability signal. Each anchor probe still receives a measured per-facet content-distance like any pool topic; 'anchor' names its role (shared, fixed), not an assumed zero-charge. Flat-toned by design — do not add affect words.",
+  "probes": [
+    { "id": "anchor-loss",        "keyword": "loss" },
+    { "id": "anchor-a-city",      "keyword": "a city" },
+    { "id": "anchor-the-future",  "keyword": "the future" },
+    { "id": "anchor-the-past",    "keyword": "the past" },
+    { "id": "anchor-the-present", "keyword": "the present" },
+    { "id": "anchor-a-room",      "keyword": "a room" },
+    { "id": "anchor-morning",     "keyword": "morning" },
+    { "id": "anchor-a-stranger",  "keyword": "a stranger" },
+    { "id": "anchor-a-meal",      "keyword": "a meal" }
+  ]
+}

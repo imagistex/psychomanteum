@@ -1,0 +1,82 @@
+{
+  "_field_guide": {
+    "description": "Provenance manifest for one facet. Tracks every source gathered, every passage extracted, every distilled unit, and the mapping from the facet body's functions back to source passages. Read by essence-reader (writes sources/passages), distiller (writes distillations), cipher (reads everything), and any future audit or migration agent.",
+    "schema_version": "0.2.0",
+    "remove_field_guide_in_production": true
+  },
+  "facet": {
+    "name": "{{FACET_NAME}}",
+    "schema": "0.2.0",
+    "generated": "{{GENERATED_DATE}}"
+  },
+  "sources": [
+    {
+      "id": "SRC-001",
+      "type": "encyclopedic | lexicon | canon | voice",
+      "fetcher_agent": "gatherer-encyclopedic | gatherer-lexicon | gatherer-canon | gatherer-voices",
+      "title": "Source title",
+      "author": "Last, First (or Unknown)",
+      "year": "YYYY (or null)",
+      "url": "https://... (or null if not obtainable)",
+      "fetched_at": "ISO-8601 timestamp",
+      "fetch_status": "success | partial | failed",
+      "load_quality": "full | partial",
+      "notes": "Optional notes about how the source was acquired, why it was selected, etc."
+    }
+  ],
+  "passages": [
+    {
+      "id": "SRC-001-PSG-001 (globally unique; source_id prefix assigned at read aggregation, I13)",
+      "source_id": "SRC-001",
+      "text": "The extracted passage, verbatim from the source.",
+      "function_candidate": "situate | declare-stance | mark-the-territory | name-the-failure-modes | locate-among-neighbors | point-at-the-region | close-on-a-corpus-line",
+      "subsection_candidate": "Optional more-specific tag (e.g., 'epistemological_commitments')",
+      "lineage_tags": ["tag1", "tag2"],
+      "voice_charge": "high | medium | low",
+      "extracted_by": "essence-reader",
+      "extracted_at": "ISO-8601 timestamp",
+      "notes": "Why this passage was chosen, what it carries"
+    }
+  ],
+  "distillations": [
+    {
+      "id": "DST-001",
+      "function": "mark-the-territory",
+      "subsection": "epistemological_commitments",
+      "source_passages": ["PSG-003", "PSG-007", "PSG-012"],
+      "text": "The compressed text produced by the distiller, ready for cipher to inscribe.",
+      "distilled_by": "distiller",
+      "distilled_at": "ISO-8601 timestamp",
+      "compression_ratio": 0.25,
+      "notes": "Optional notes about the distillation move"
+    }
+  ],
+  "facet_mapping": {
+    "_description": "Maps each function the facet body serves to the distillations (and, for the closing line, passages) that produced it. Lets the user ask 'what got compressed into this?' and trace back to source. 'Point at the region' is pervasive—the aim of the whole body—not a discrete mapping target.",
+    "situate": ["DST-..."],
+    "declare-stance": ["DST-..."],
+    "mark-the-territory": ["DST-..."],
+    "name-the-failure-modes": ["DST-..."],
+    "locate-among-neighbors": ["DST-..."],
+    "close-on-a-corpus-line": ["PSG-..."]
+  },
+  "slanted_mirrors": {
+    "_description": "The facet's self-projected latent-neighborhood (Phase 4 / Slanted Mirrors). Self-location + a roadmap of nearest POSSIBLE facets, projected from THIS corpus only (hermetic—never by reading sibling bodies). The articulated version lives in the facet body; this is the structured mirror + the hook for the literal embedding version.",
+    "self_location": {
+      "axes": ["cold<->warm", "systemic<->personal"],
+      "region": "One line: where this facet sits on its axes, in its own terms."
+    },
+    "possible_neighbors": [
+      {"name": "candidate-facet-name", "one_line": "the adjacent region this corpus's gravity implies; mostly unbuilt"}
+    ],
+    "embedding_vector": null
+  },
+  "iteration_history": [
+    {
+      "iteration": 0,
+      "phase": "inscribe",
+      "draft_path": "drafts/{{FACET_NAME}}-iter0.md",
+      "notes": "Initial cipher inscription"
+    }
+  ]
+}

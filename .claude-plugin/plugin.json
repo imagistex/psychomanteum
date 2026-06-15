@@ -1,0 +1,50 @@
+{
+  "name": "psychomanteum",
+  "version": "1.0.0",
+  "description": "Build facets—small, dense files that point an LLM at a region of latent space. Compresses canonical corpora into voice-mirrored artifacts via a 7-phase pipeline (init, gather, read, distill, inscribe, attune, bind). Generic substrates; works on any Claude Code instance.",
+  "author": {
+    "name": "Emma Lirette",
+    "url": "https://github.com/imagistex/circuit-plugins"
+  },
+  "commands": [
+    "./commands/psychomanteum-init.md",
+    "./commands/psychomanteum-gather.md",
+    "./commands/psychomanteum-read.md",
+    "./commands/psychomanteum-distill.md",
+    "./commands/psychomanteum-inscribe.md",
+    "./commands/psychomanteum-attune.md",
+    "./commands/psychomanteum-attune-chamber.md",
+    "./commands/psychomanteum-bind.md",
+    "./commands/psychomanteum-eval.md",
+    "./commands/psychomanteum-status.md"
+  ],
+  "agents": [
+    "./agents/gatherer-encyclopedic.md",
+    "./agents/gatherer-lexicon.md",
+    "./agents/gatherer-canon.md",
+    "./agents/gatherer-voices.md",
+    "./agents/gleaner.md",
+    "./agents/essence-reader.md",
+    "./agents/distiller.md",
+    "./agents/cipher.md",
+    "./agents/verifier-density.md",
+    "./agents/verifier-resonance.md",
+    "./agents/verifier-strangeness.md",
+    "./agents/attuner.md",
+    "./agents/eval-prober.md",
+    "./agents/eval-scorer.md"
+  ],
+  "skills": [
+    "./skills/psychomanteum/"
+  ],
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {"type": "command", "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/validate-facet-schema.py"}
+        ]
+      }
+    ]
+  }
+}

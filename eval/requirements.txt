@@ -1,0 +1,43 @@
+# ===========================================================================
+# psychomanteum eval harness — numeric core dependencies
+# ===========================================================================
+#
+# CORE (REQUIRED) — the always-on floor. The whole module RUNS, and the full
+# self-test PASSES, with only these installed. No model downloads, no network.
+#   * numpy        — vectors, the seeded bootstrap, linear algebra
+#   * scikit-learn — TF-IDF (content-axis fallback) + cosine similarity
+#   * scipy        — OPTIONAL-but-listed: only used by fit_transfer's optional
+#                    exponential-decay fit (curve_fit). The module degrades
+#                    gracefully (linear-only) if scipy is absent, so it is safe
+#                    to drop on a minimal install. Kept in CORE because the
+#                    'full' tier curve fit is materially better with it.
+numpy>=1.21
+scikit-learn>=1.0
+scipy>=1.7
+
+# ===========================================================================
+# OPTIONAL — neural upgrades. NOT required; guarded behind try/except ImportError
+# in metrics.py. If present AND the model is locally cached / downloadable, the
+# distance functions upgrade automatically and record method='...+neural...' /
+# 'neural_content_embedding'; if absent, they fall back to classical stylometry /
+# TF-IDF and say so via `method`. Installing these pulls in torch and (on first
+# use) downloads the models below — that is why they live in a SEPARATE file
+# (requirements-neural.txt) and are NOT installed by `pip install -r
+# requirements.txt`, preserving the no-network core contract.
+#
+# Enable the neural tier with:
+#     pip install -r eval/requirements-neural.txt
+# It pins:
+#     sentence-transformers>=2.2     # neural style + content embeddings backend
+# and pulls (lazily, on first encode()) the model weights:
+#     * style   -> StyleDistance/styledistance            (_STYLE_MODEL_ID)
+#     * content -> sentence-transformers/all-MiniLM-L6-v2  (_CONTENT_MODEL_ID)
+# Model weights are downloaded by sentence-transformers from the HF hub on first
+# use — they are weights, not pip packages, so no extra requirement line is
+# needed for the models themselves.
+# ===========================================================================
+#
+# nltk>=3.7                       # ONLY if you extend stylometry with POS
+#                                 # n-grams (averaged_perceptron_tagger). The
+#                                 # current module does NOT use POS tags, so
+#                                 # nltk is not needed for anything shipped here.

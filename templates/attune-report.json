@@ -1,0 +1,49 @@
+{
+  "_field_guide": {
+    "description": "Per-iteration verifier output. One report per verifier per iteration. Read by the attuner agent to revise the draft. Archived to attune/iter-N/ for trajectory inspection.",
+    "schema_version": "0.2.0",
+    "remove_field_guide_in_production": true
+  },
+  "verifier": "density | resonance | strangeness",
+  "iteration": 1,
+  "facet_name": "{{FACET_NAME}}",
+  "draft_path": "drafts/{{FACET_NAME}}-iter1.md",
+  "evaluated_at": "ISO-8601 timestamp",
+  "verdict": "pass | fail",
+  "confidence": "high | medium | low",
+  "summary": "One sentence: overall assessment of this iteration's draft from this verifier's perspective.",
+  "findings": [
+    {
+      "section": "<section/movement label, or 'global'>",
+      "severity": "high | medium | low",
+      "category": "filler | hedge | corporate_phrase | dead_metaphor | survey_voice | latent_drift | jargon_missing | etc.",
+      "excerpt": "The problematic text, copied verbatim from the draft. May be a sentence, a phrase, or a full paragraph.",
+      "diagnosis": "One sentence: what is wrong with this excerpt.",
+      "suggestion": "One sentence: what to do instead. The attuner uses this as the revision target."
+    }
+  ],
+  "metrics": {
+    "_description": "Verifier-specific quantitative measurements. Schema varies per verifier.",
+    "_density_example": {
+      "lines_per_section": {"<section/movement label A>": 4, "<label B>": 12, "<label C>": 78},
+      "filler_phrase_count": 3,
+      "hedge_phrase_count": 1,
+      "estimated_signal_per_token": 0.72
+    },
+    "_resonance_example": {
+      "probe_question": "What is the slow cancellation of the future?",
+      "probe_response_excerpt": "...",
+      "resonance_score": 0.81,
+      "baseline_comparison": "Matches Fisher idiom in 8/10 phrasal markers",
+      "embedding_similarity_to_corpus": 0.74
+    },
+    "_strangeness_example": {
+      "flagged_phrases": ["best practices", "leverage", "at the end of the day"],
+      "flagged_structures": ["em-dash buffer spacing in the opening movement"],
+      "tonal_drift_findings": [{"section": "<section/movement label, or 'global'>", "register": "customer-service voice"}],
+      "passes_against_flatness_checklist": false
+    }
+  },
+  "halt_recommended": false,
+  "halt_reason": "Optional: if the verifier judges that further iteration will not help (e.g., corpus is the bottleneck, not the draft), set true and explain."
+}

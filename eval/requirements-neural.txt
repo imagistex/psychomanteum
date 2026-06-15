@@ -1,0 +1,31 @@
+# ===========================================================================
+# psychomanteum eval harness — OPTIONAL neural tier
+# ===========================================================================
+#
+# Installs the guarded neural upgrades for the distance axes. The CORE harness
+# (eval/requirements.txt) runs and the full self-test passes WITHOUT any of this
+# — neural is a strict, opt-in superset. Keeping it in a separate file is what
+# preserves the "core = numpy/scikit/scipy, no downloads, no network" contract:
+# `pip install -r eval/requirements.txt` never pulls torch.
+#
+# Install:
+#     pip install -r eval/requirements.txt          # core (always)
+#     pip install -r eval/requirements-neural.txt   # neural tier (this file)
+#
+# What this enables (auto-detected via guarded imports in metrics.py; the path
+# that runs is reported in each function's `method`):
+#   * STYLE axis   -> StyleDistance/STEL content-independent style embedding,
+#                     concatenated onto the classical stylometry floor
+#                     (method = "classical_stylometry+neural_style"). Model id:
+#                     StyleDistance/styledistance  (see _STYLE_MODEL_ID).
+#   * CONTENT axis -> sentence-transformers MiniLM topic embedding, replacing the
+#                     TF-IDF fallback (method = "neural_content_embedding").
+#                     Model id: sentence-transformers/all-MiniLM-L6-v2
+#                     (see _CONTENT_MODEL_ID).
+#
+# The model WEIGHTS are downloaded lazily by sentence-transformers from the HF
+# hub on first encode() — they are weights, not pip packages, so only the
+# backend below needs pinning here.
+# ===========================================================================
+
+sentence-transformers>=2.2     # neural style (StyleDistance/STEL) + content (MiniLM) backend

@@ -1,0 +1,45 @@
+# macOS noise
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Editor caches
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Python
+__pycache__/
+*.pyc
+
+# Working directories produced by pipeline runs
+_psychomanteum-work/
+corpus/
+distilled/
+drafts/
+attune/
+
+# Per-project state files (project working dirs only)
+.psychomanteum-state.json
+.psychomanteum-config.md
+
+# Iteration plan — local working doc, not for public ship
+PLAN.md
+*.local.md
+
+# Local temp
+/tmp/
+*.tmp
+*.bak
+.venv/
+venv/
+
+# Pre-release archive — internal docs, dogfood runs, raw manifests (on disk, never shipped)
+archive/
+_scratch/
+eval-run-judge/
+
+# held back from public (lives only in the private dev repo)
+paper/
