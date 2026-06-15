@@ -36,7 +36,7 @@ Each phase is gated for human review where it matters. Output is a facet file in
 
 ```bash
 # Install (one-time)
-/plugin marketplace add github:imagistex/psychomanteum
+/plugin marketplace add imagistex/psychomanteum
 /plugin install psychomanteum
 
 # Build your first facet
