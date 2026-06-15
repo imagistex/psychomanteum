@@ -4,7 +4,7 @@
   "description": "Build facets—small, dense files that point an LLM at a region of latent space. Compresses canonical corpora into voice-mirrored artifacts via a 7-phase pipeline (init, gather, read, distill, inscribe, attune, bind). Generic substrates; works on any Claude Code instance.",
   "author": {
     "name": "Emma Lirette",
-    "url": "https://github.com/imagistex/circuit-plugins"
+    "url": "https://github.com/imagistex/psychomanteum"
   },
   "commands": [
     "./commands/psychomanteum-init.md",

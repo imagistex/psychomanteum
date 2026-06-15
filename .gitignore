@@ -40,6 +40,5 @@ venv/
 archive/
 _scratch/
 eval-run-judge/
-
-# held back from public (lives only in the private dev repo)
 paper/
+release.sh
