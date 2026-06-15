@@ -1,5 +1,6 @@
 {
   "name": "psychomanteum",
+  "description": "A chamber for building facets — dense, voice-mirrored files that point an LLM at a region of latent space.",
   "owner": {
     "name": "Emma Lirette",
     "url": "https://github.com/imagistex/psychomanteum"
