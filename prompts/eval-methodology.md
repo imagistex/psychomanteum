@@ -4,6 +4,8 @@
 
 *Operative doctrine only—what to measure and the traps that distort it. For the round-by-round **evidence** behind these choices (which cohort reordered the dashboard, which facet flipped, why a signal was demoted), see `paper/2026-06-08-stronger-stranger.md`—not here. The agents load this file in full every run, so it stays lean.*
 
+*The **operational scale**—the anchored 0–3 notches the judge actually scores on, with verbatim calibration anchors, the dual-regime principle, and the split/pairwise/affordance rules—lives in its companion `eval-rubric.md`. This file fixes **what** to measure and **why**; that one fixes **how to score it** without drift. Load both.*
+
 ---
 
 ## The Claim Under Test

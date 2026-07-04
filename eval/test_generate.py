@@ -265,10 +265,12 @@ class TestGenerationDriverCheckpointResume(unittest.TestCase):
         self.calls = []
         self._orig_generate = generation_driver.gen.generate
 
-        def fake_generate(system, user, model="headless-claude-code", timeout=300):
+        def fake_generate(system, user, model="headless-claude-code", timeout=300,
+                          params=None):
             self.calls.append((system[:12], user, model))
             return {"output": "OUT for %s" % user, "model": model,
-                    "capture_method": "headless-claude-code", "ok": True, "error": None}
+                    "capture_method": "headless-claude-code", "ok": True,
+                    "error": None, "params": params}
 
         generation_driver.gen.generate = fake_generate
         self._fake_generate = fake_generate
@@ -359,10 +361,46 @@ class TestGenerationDriverCheckpointResume(unittest.TestCase):
         with open(self.out_path) as fh:
             json.load(fh)
 
+    def test_params_threaded_into_generate(self):
+        # run_battery must thread its `params` kwarg into EVERY generate() call
+        # (the channel that was previously dropped). Default None preserves
+        # today's behavior; an explicit dict reaches the adapter verbatim.
+        seen_params = []
+
+        def recording(system, user, model="headless-claude-code", timeout=300,
+                      params=None):
+            seen_params.append(params)
+            return {"output": "OUT for %s" % user, "model": model,
+                    "capture_method": "headless-claude-code", "ok": True,
+                    "error": None, "params": params}
+
+        generation_driver.gen.generate = recording
+
+        # (a) default: params is None on every cell (back-compat).
+        generation_driver.run_battery(
+            self.battery_path, self.facet_path, self.distractor_path,
+            self.out_path, manifest_meta={"facet_name": "t"}, model="m1", timeout=5)
+        self.assertEqual(len(seen_params), 6)
+        self.assertTrue(all(p is None for p in seen_params),
+                        "params should default to None on every cell")
+
+        # (b) explicit params: the SAME dict reaches every generate() call.
+        seen_params.clear()
+        p = {"temperature": 0.0, "seed": 0}
+        out2 = os.path.join(self._tmp, "generations2.json")
+        generation_driver.run_battery(
+            self.battery_path, self.facet_path, self.distractor_path,
+            out2, manifest_meta={"facet_name": "t"}, model="m2", timeout=5,
+            params=p)
+        self.assertEqual(len(seen_params), 6)
+        self.assertTrue(all(sp == p for sp in seen_params),
+                        "explicit params were not threaded into generate()")
+
     def test_failed_cell_recorded_and_not_treated_as_done(self):
         # A failing generate() must record ok=False and NOT count the cell as done
         # (so a later resume retries it).
-        def failing(system, user, model="headless-claude-code", timeout=300):
+        def failing(system, user, model="headless-claude-code", timeout=300,
+                    params=None):
             return {"output": "", "model": model, "capture_method": "headless-claude-code",
                     "ok": False, "error": "boom"}
         generation_driver.gen.generate = failing

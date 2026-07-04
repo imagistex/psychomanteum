@@ -17,8 +17,12 @@ contamination caveat below), so absolute numbers are wrapper-contaminated and th
 | `cli.py` | the single Bash entry point the agents call (JSON in / JSON out) |
 | `requirements.txt` | core deps (numpy, scikit-learn, scipy); neural tier lives in `requirements-neural.txt` |
 | `requirements-neural.txt` | OPTIONAL neural tier (sentence-transformers; StyleDistance + MiniLM weights). Opt-in; not installed by the core. |
-| `test_metrics.py` | offline self-test (**86 checks** with core deps only / **87** when the neural tier is also installed — the neural tier runs one additional check; runs with no network) |
-| `test_generate.py` | guarded smoke test (runs one real generation iff the `claude` CLI is present; else SKIP) |
+| `scry.py` | multi-model SCRY generation orchestrator: roster resolution (model-string-pure), `scry.json` manifest + battery fingerprint + cost estimate (M3), per-model `run_battery` into per-model dirs (the R4 no-collision fix) |
+| `scry_aggregate.py` | combine per-model dashboards → `scry-dashboard.json` (dual-schema reader: current `headline.*` + legacy `signals.*`); verdict gate, constellation point-set, honesty warnings |
+| `harnesses/` | optional out-of-tree generation adapters (registered via import side-effect); `ollama.py` = clean local backend (real params + logprobs) |
+| `test_metrics.py` | offline self-test (**102 checks** with core deps only / **103** when the neural tier is also installed — the neural tier runs one additional check; runs with no network) |
+| `test_generate.py` | 22 offline unit tests + a guarded smoke test (one real generation iff the `claude` CLI is present; else SKIP) |
+| `test_scry.py` | offline self-test for multi-model SCRY (**33 checks**: R4 no-collision plumbing, dual-schema aggregator, verdict-gate + interpretive-gate, roster collision guard, corrupt-file robustness, resume params back-compat, ollama adapter via a mocked client; no live model or agent) |
 
 ## Setup
 
@@ -27,8 +31,9 @@ System Python may lack the deps; use a venv:
 ```bash
 python3 -m venv .venv && . .venv/bin/activate
 pip install -r eval/requirements.txt        # core: numpy, scikit-learn, scipy
-python eval/test_metrics.py                  # expect: 86/86 checks passed (core deps only; 87/87 if the neural tier is also installed — one additional check)
-python eval/test_generate.py                 # runs a real pirate generation if `claude` is on PATH, else SKIP
+python eval/test_metrics.py                  # expect: 102/102 checks passed (core deps only; 103/103 if the neural tier is also installed — one additional check)
+python eval/test_generate.py                 # 22 unit tests + a real pirate generation if `claude` is on PATH, else SKIP
+python eval/test_scry.py                      # expect: 33/33 passed (offline; no model or agent)
 
 # OPTIONAL neural tier (auto-detected at runtime; not needed for the core/tests):
 pip install -r eval/requirements-neural.txt  # sentence-transformers (+ torch); model weights download on first use

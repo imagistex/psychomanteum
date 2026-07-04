@@ -90,6 +90,17 @@ This is the LLM-judged check. Read each section and ask: does this section's reg
 
 If the corpus's actual voice IS one of these (rare but possible—e.g., a "Customer Service Excellence" facet built from corporate training materials), the register isn't a flag. Check the cipher's voice memo to know what was intended.
 
+### Step 4.5: Positive Strangeness — the Climb (advisory score)
+
+The passes above catch *falling* (flatness). New in 1.1.0: also register whether the draft *climbs* — reaches a live, register-true move rather than merely avoiding flatness. Score `strangeness_positive` (0–3), **advisory** (it informs the attuner; it does not by itself fail a draft — enforcing "climbing" remains the human gate's + eval's job, per the scope note above):
+
+- **0** — generic register-speak; the lineage's singular moves dissolved into "power, society, discourse."
+- **1** — one or two corpus-specific images survive; the rest is generic.
+- **2** — several singular moves preserved; the voice has edges.
+- **3** — preserves the corpus's surprises **and/or makes its own move in the register** (e.g., an invented in-voice aphorism — "find the seam where the inevitable was sewn, and pull").
+
+The point of scoring the climb (not only the fall) is to stop the attuner from "improving" a draft by sanding off its surprises: a revision that *raises* `strangeness_positive` — by preserving or *inventing* a live move — beats one that merely removes flags. Never lower this score for plain syntax; strangeness is cognitive, not ornamental.
+
 ### Step 5: Compile Findings
 
 For each flagged item, build a finding:
@@ -133,7 +144,8 @@ For each flagged item, build a finding:
     ],
     "passes_against_flatness_checklist": false,
     "total_high_severity": 3,
-    "total_medium_severity": 5
+    "total_medium_severity": 5,
+    "strangeness_positive": 2
   },
   "halt_recommended": false,
   "halt_reason": null

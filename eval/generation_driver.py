@@ -131,6 +131,17 @@ def _cell_done(cell: Optional[dict]) -> bool:
     return bool(cell.get("ok", True))
 
 
+def _params_match(cell_params, req_params) -> bool:
+    """Reuse a cached cell only if its sampling params match the request. A cell
+    with NO recorded params (older runs / CLI no-op) matches ANYTHING — preserving
+    back-compat resume of pre-params generations.json; a cell stamped with params
+    must match the request exactly, so changing seed/temperature/top_p invalidates
+    stale cells instead of silently reusing them."""
+    if cell_params is None:
+        return True
+    return json.dumps(cell_params, sort_keys=True) == json.dumps(req_params, sort_keys=True)
+
+
 def _load_prior(out_path: str) -> Dict[str, dict]:
     """Read an existing generations.json and index its cells by (probe_id, condition).
 
@@ -193,6 +204,7 @@ def run_battery(
     model: str = "headless-claude-code",
     timeout: int = 300,
     baseline_system: str = "",
+    params: Optional[dict] = None,
 ) -> dict:
     """
     Run the full (probe x 3-condition) battery sequentially with an ATOMIC
@@ -202,6 +214,12 @@ def run_battery(
     elapsed_s, failures:[...]}. NEVER raises for an operational cell failure (the
     failure is recorded in the cell and the run continues); raises only on a
     genuinely unreadable battery / unreadable facet files (caller's bug).
+
+    `params` is an OPTIONAL sampling-control dict threaded straight into every
+    `generate()` call (and recorded on the result by `generate`). It is a NO-OP
+    for the CLI adapters today (the Meta-wrapped CLIs take no sampling flags);
+    the channel carries it for a future API/local adapter that will consume it.
+    Default None preserves today's behavior exactly.
     """
     manifest_meta = dict(manifest_meta or {})
 
@@ -237,7 +255,7 @@ def run_battery(
             # model are reused (back-compat) but new writes always stamp it.
             if _cell_done(cell):
                 cell_model = cell.get("model")
-                if cell_model in (None, model):
+                if cell_model in (None, model) and _params_match(cell.get("params"), params):
                     gens[cond] = cell
                     reused += 1
         rows_by_id[pid] = {**{k: v for k, v in p.items() if k != "generations"},
@@ -250,11 +268,21 @@ def run_battery(
     failures: List[dict] = []
 
     def build_manifest() -> dict:
+        # Derive capture_method from the actual completed cells; the CLI string is
+        # only a fallback for a manifest written before the first cell completes.
+        # (Hardcoding it mislabeled local/ollama runs as headless-claude-code.)
+        caps: Dict[str, int] = {}
+        for pid in order:
+            for c in rows_by_id.get(pid, {}).get("generations", {}).values():
+                cm = c.get("capture_method")
+                if cm:
+                    caps[cm] = caps.get(cm, 0) + 1
+        capture_method = max(caps, key=caps.get) if caps else "headless-claude-code"
         manifest = {
             "prober": "eval-prober (generation_driver, atomic-checkpoint)",
             "facet_schema": "0.2.0",
             "target_model": model,
-            "capture_method": "headless-claude-code",
+            "capture_method": capture_method,
             "captured_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "probes": [rows_by_id[pid] for pid in order],
             "battery_summary": battery_summary,
@@ -290,7 +318,8 @@ def run_battery(
             ts = time.time()
             # STRICTLY SEQUENTIAL: one blocking generate() before the next. The
             # hard-kill timeout + host lock live inside generate().
-            res = gen.generate(system=system, user=prompt, model=model, timeout=timeout)
+            res = gen.generate(system=system, user=prompt, model=model,
+                               timeout=timeout, params=params)
             dt = time.time() - ts
             ok = bool(res.get("ok"))
             out = res.get("output") or ""
@@ -306,6 +335,15 @@ def run_battery(
             }
             if cond == "baseline":
                 cell["cached"] = False
+            # Persist sampling provenance + optional adapter generation metadata
+            # (logprobs/perplexity/token stats for local backends; absent for the
+            # CLI adapters, which return no gen_meta). Kept compact by the adapter
+            # so generations.json does not bloat.
+            if res.get("params") is not None:
+                cell["params"] = res.get("params")
+            gm = res.get("gen_meta")
+            if gm is not None:
+                cell["gen_meta"] = gm
             gens[cond] = cell
             if ok:
                 completed += 1
@@ -348,12 +386,18 @@ def main(argv=None) -> int:
     ap.add_argument("--meta", default=None, help="optional JSON file of manifest metadata to merge")
     ap.add_argument("--model", default="headless-claude-code")
     ap.add_argument("--timeout", type=int, default=300)
+    ap.add_argument("--params", default=None,
+                    help="optional JSON dict of sampling params threaded into "
+                         "every generate() call (NO-OP for CLI adapters; "
+                         "provenance-only until an API/local adapter consumes it)")
     args = ap.parse_args(argv)
 
     manifest_meta = {}
     if args.meta:
         with open(args.meta, "r") as fh:
             manifest_meta = json.load(fh)
+
+    params = json.loads(args.params) if args.params else None
 
     summary = run_battery(
         battery_path=args.battery,
@@ -363,6 +407,7 @@ def main(argv=None) -> int:
         manifest_meta=manifest_meta,
         model=args.model,
         timeout=args.timeout,
+        params=params,
     )
     # Print the summary as JSON on stdout (progress went to stderr) so a launcher
     # can capture a machine-readable result.

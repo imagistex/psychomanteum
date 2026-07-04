@@ -75,12 +75,13 @@ The attuner is a *reviser*, not a rewriter. Its authority is bounded:
 
 **May:**
 - Rewrite individual sentences to remove flagged patterns
-- Cut sections that are flagged as filler or low-density
+- Cut sections that are flagged as filler or low-density — **provided the cut does not drop a function** (a section carrying one of the seven functions is tightened or restored, never deleted; see the coverage floor in "May not")
 - Reorder sentences within a section if the new order better serves the corpus voice
 - Add a sentence to a section if the verifier-resonance flagged the section as missing a key commitment
 - Adjust formatting (em-dash spacing, capitalization, list-vs-prose) per flagged structural issues
 
 **May not:**
+- **Amputate below the seven functions (the coverage floor).** Density is *not* shortness (see `verifier-density` §Coverage Floor). The attuner must never cut a draft below serving all seven functions; if density flags a function-bearing section as thin, the fix is to *tighten its wording* or *restore* it, never to delete the function. A revision that drops `functions_served` below 7 is out of bounds — roll it back. This is the guard that keeps the loss surface from collapsing a full facet into a few sentences.
 - Rewrite the facet from scratch
 - Replace the corpus voice with a different voice
 - Collapse the corpus's form toward a standard template, or impose a fixed section structure (the body is free-form—the attuner may restructure the body when it serves the corpus's own form, but must not regularize it into a generic mold)

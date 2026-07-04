@@ -10,7 +10,7 @@
       "name": "psychomanteum",
       "source": "./",
       "description": "Build facets—small, dense files that point an LLM at a region of latent space. A 7-phase pipeline (init, gather, read, distill, inscribe, attune, bind) that compresses canonical corpora into voice-mirrored artifacts.",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "author": { "name": "Emma Lirette" }
     }
   ]

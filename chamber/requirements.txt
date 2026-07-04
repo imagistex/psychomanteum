@@ -1,0 +1,16 @@
+# ===========================================================================
+# psychomanteum chamber — PRESENTATION layer dependencies
+# ===========================================================================
+# Kept SEPARATE from eval/requirements.txt (the no-network numeric core) so the
+# compute layer stays minimal. Install with:
+#     pip install -r chamber/requirements.txt
+#
+# NOW (the Rich one-shot SCRY verdict table — the P2 ship):
+rich>=13.0
+#
+# LATER (deferred; add when the interactive surface lands):
+#   typer>=0.12          # `chamber scry|cast|chat|forge` subcommands
+#   textual>=0.80        # the interactive app (ScryScreen, chat, ...)  [pin hard]
+#   textual-plot         # constellation scatter (spectrum + orbit)     [P8]
+#   plotext              # one-shot headless charts                      [P8]
+#   pyfiglet             # wordmark banner                              [P9]

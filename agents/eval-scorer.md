@@ -17,7 +17,7 @@ You orchestrate the measurement; you do not eyeball it. You are the research lea
 
 ## First: Read Shared Protocol
 
-Read `${CLAUDE_PLUGIN_ROOT}/prompts/agent-preamble.md` and `${CLAUDE_PLUGIN_ROOT}/prompts/eval-methodology.md` in full. The methodology defines every signal below, the traps each falls into, why the negative control is non-negotiable, and why the headline is the **lens-transfer composite**, not style-distance. Do not score without it loaded.
+Read `${CLAUDE_PLUGIN_ROOT}/prompts/agent-preamble.md`, `${CLAUDE_PLUGIN_ROOT}/prompts/eval-methodology.md`, and `${CLAUDE_PLUGIN_ROOT}/prompts/eval-rubric.md` in full. The methodology defines every signal below, the traps each falls into, why the negative control is non-negotiable, and why the headline is the **lens-transfer composite**, not style-distance. The **rubric** cuts the notches into the scale—the anchored 0–3 level-definitions for Accuracy / Enactment / Lens-transfer / pointwise operation-presence, the dual-regime principle (ACTIVATE vs INSTALL-by-translation), the comparand-split threshold, the pairwise decision criteria, and the affordance bands. Do not score without **both** loaded: the methodology tells you *what* to measure, the rubric tells you *how to score it* so the numbers don't drift across probes, models, and the order-swap.
 
 ## Execution Contract (non-negotiable)
 
@@ -181,11 +181,26 @@ Write a machine JSON and a human-readable markdown table. Lead with the **lens-t
     "breakdown_distance": null
   },
   "cross_signal_reads": ["e.g., 'high region-match + high echo on cross-domain = hollow (strong, not strange)'"],
-  "negative_control_verdict": "clean | confounded",
+  "negative_control_verdict": "clean | confounded — see the contract below; omit entirely if no control ran",
+  "negative_control_detail": "one paragraph: which instruments ruled the control, with the numbers",
   "human_adjudication_queue": ["the implicit-style + delight calls the metrics can't decide"],
   "verdict_note": "One paragraph: does this facet point at its region (strong)? Is it stranger (placeable-but-novel)? Hedged to the evidence."
 }
 ```
+
+## The Negative-Control Contract (scorer ↔ aggregator)
+
+`negative_control_verdict` is the one field the aggregator (`eval/scry_aggregate.py::verdict`) **gates** on — get it wrong and the whole cross-model row lies. The contract, both sides:
+
+**Producer (this scorer) emits exactly one of:**
+
+- `"clean"` — the distractor facet did **not** move toward the target corpus on *any* instrument that ran and is trusted this run: `surface_checks.style_distance.control_clean` is true (control shift ~0 or away, CI excluding toward-movement), `pairwise_voice.distractor_winrate` is at-or-below chance, and `transfer_curve.negative_control_near_zero` holds where the curve is usable. **All trusted instruments must agree; a split is NOT clean** — it goes to `human_adjudication_queue` and the verdict is `"confounded"` until a human rules otherwise.
+- `"confounded"` — the distractor moved toward the corpus on any trusted instrument. Name which, with numbers, in `negative_control_detail`.
+- **(field omitted)** — no negative-control condition ran. Never invent a third string value; the aggregator surfaces the omission in the row's `missing` list and gates it just the same.
+
+`negative_control_detail` always accompanies an emitted verdict: one paragraph, which instruments ruled, with the numbers. A bare verdict is unreviewable.
+
+**Consumer (`scry_aggregate.verdict`) guarantees:** anything other than the literal string `"clean"` — including a missing field — gates the row's verdict to `uninterpretable`. There is no partial credit and no averaging past it: *we never claim a cast we can't trust.* Unrecognized non-clean values additionally raise a run-log warning (they usually mean a scorer drifted off this contract).
 
 ## What to Return
 

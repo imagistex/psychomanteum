@@ -1,0 +1,19 @@
+# chamber/models.toml — friendly-name -> model-string overlay for the scry roster.
+# Overrides eval/scry.py DEFAULT_MODELS (resolve_roster merges this on top).
+# gitignored registry per SPEC-V2-HARDENING (config: split chamber.toml + gitignored models.toml).
+
+[models]
+# faithful talkie-1930 via llama-server (-ngl 0; OpenAI API @ TALKIE_SERVER_URL).
+# NOTE: the DEFAULT_MODELS "talkie" (ollama hf.co GGUF) is BROKEN — ollama's talkie
+# arch diverged (demands QK-norm weights; wrong logit_scale). This entry overrides it.
+talkie = "talkie:talkie-1930"
+
+# clean local open-weights via ollama (Metal).
+qwen7  = "ollama:qwen2.5:7b-instruct"
+qwen14 = "ollama:qwen2.5:14b"
+gemma  = "ollama:gemma4:26b"
+
+# frontier Claude via the raw Messages API (clean (system,user) channel; NOT the
+# contaminated `claude` CLI wrapper). The la-claude far control: bare fable-5
+# weights, no harness, no memory files. Needs ANTHROPIC_API_KEY in the env.
+fable5 = "anthropic:claude-fable-5"

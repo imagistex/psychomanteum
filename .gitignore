@@ -42,3 +42,8 @@ _scratch/
 eval-run-judge/
 paper/
 release.sh
+HARNESS-PLAN.md
+BESTIARY.md
+dev-research/
+eval-runs/
+gallery/

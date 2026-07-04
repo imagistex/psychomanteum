@@ -101,10 +101,21 @@ For the signal-per-token estimate, use this rough scale:
 
 A passing draft is **≥0.85**.
 
+### Step 3.5: Coverage Floor — the Conservation Rule (density ≠ shortness)
+
+Density measures signal-per-token, **not brevity**, and it has a hard floor: a facet must keep serving all **seven functions** (situate · declare-stance · mark-the-territory · name-the-failure-modes · locate-among-neighbors · point-at-the-region · close-on-a-corpus-line). Before you reward compression, confirm coverage:
+
+- Count `functions_served` (0–7): how many functions the current draft still serves.
+- **A draft cut until a function is missing or vestigial has FAILED by amputation** — a *high-severity* density finding (`category: "amputation"`), not a pass. The remedy is to **RESTORE** the thinned function ("restore <function>: …"), **never** to cut further.
+- Thin-but-padded → tighten wording. Missing-function → restore. Opposite fixes; do not confuse them.
+
+Why this exists: an un-floored density signal is monotone — "cut filler" with no floor becomes "cut everything," and the loop collapses a full facet into a few sentences (observed: a ~2100-char draft driven to ~600, losing four of seven functions). The floor is what lets density *tighten* a facet without dissolving it.
+
 ### Step 4: Verdict
 
-- **Pass**: signal-per-token estimate ≥0.75 AND no high-severity findings
-- **Fail**: signal-per-token <0.75 OR any high-severity finding
+- **Pass**: signal-per-token estimate ≥0.75 AND all seven functions served (`functions_served == 7`) AND no high-severity findings
+- **Fail**: signal-per-token <0.75 OR any function amputated (`functions_served < 7`) OR any high-severity finding
+- **Never** `pass` a draft that reads dense only because it was cut below its functions — that is amputation, and it fails.
 
 ### Step 5: Write the Report
 
@@ -138,7 +149,8 @@ Use the schema from `${CLAUDE_PLUGIN_ROOT}/templates/attune-report.json`:
     "hedge_phrase_count": 2,
     "padding_phrase_count": 7,
     "redundancy_count": 1,
-    "estimated_signal_per_token": 0.72
+    "estimated_signal_per_token": 0.72,
+    "functions_served": 7
   },
   "halt_recommended": false,
   "halt_reason": null

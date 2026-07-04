@@ -1,6 +1,6 @@
 # psychomanteum
 
-v1.0.0
+v1.1.0
 
 *A plugin for building **facets**: small, dense files that point an LLM at a region of latent space.*
 
@@ -88,12 +88,19 @@ Built on practice, gratitude, and pattern-borrowing.
 
 *versioning*: we're using git/SemVer. The facets carry their own unique `version` not tied to the plugin's version.
 
+### Shipped in 1.1.0 — the scry chamber + attunement hardening
+- **The scry chamber** — the cross-model eval harness (`/psychomanteum-scry`): condition *any* registered model on a facet and measure whether the spell crosses model lines. `eval/scry.py` orchestrates the battery; `eval/scry_aggregate.py` reads the dashboards into a constellation with verdicts (**cast / half-cast / mute**) gated by a clean negative control; `chamber/scry_table.py` renders it.
+- **Model adapters** in `eval/harnesses/` — ollama (local generation + logprobs→perplexity), a raw Messages-API anthropic adapter (a clean `(system, user)` channel, no CLI-wrapper contamination), and a `llama-server` harness for period models with unusual architectures.
+- **Anchored eval rubric** (`prompts/eval-rubric.md`) — 0–3 notches pinned to verbatim generations, plus the dual-regime principle: a facet **ACTIVATEs** where the episteme already lives in the model, and **INSTALLs-by-translation** where the model predates it.
+- **The negative-control contract** — the scorer↔aggregator law, written down: no clean control, no claim.
+- **Coverage-conservation rule** in the attune loop: density ≠ shortness; the attuner may never amputate a draft below serving all seven functions (fixes the density-collapse failure mode where the loop drove a full facet down to a few sentences).
+- **Deterministic density ratings** in `verifier-density.md` — anchored levels + the coverage floor.
+- **Deterministic resonance ratings** in `verifier-resonance.md` — a casts-vs-describes 0–3 axis + the held-verifier principle (the author never grades its own casting).
+- **Positive toward-strangeness scoring** in `verifier-strangeness.md` — score the *climb*, not just the fall; reward preserving/inventing a live move.
+- **Thinking-model support** in the ollama harness — `think` passthrough + reasoning capture (a thinking model like gemma can now be a target/pilgrim).
+
 ### Roadmap
-- cross-model eval harness
 - token management improvements
-- deterministic density ratings in verifier-density.md
-- deterministic resonance ratings in verifier-resonance.md
-- positive toward strangeness scoring in verifier-strangeness.md
 - convert in-line deterministic scripts into hooks
 - token density tunings for agent prompts
 - facet embedding vectors

@@ -96,8 +96,14 @@ Compute:
 - **`probe_response_quality`**: how well the captured probe-response matched corpus voice (assess high/medium/low)
 - **`phrasing_match_rate`**: distinctive-phrase usage (count of distinct corpus phrases appearing in the draft, divided by total distinctive phrases the corpus offers)
 - **`marker_density`**: thinkers + works + jargon per 100 lines
+- **`casting_score`** (0–3, deterministic anchors) — does the draft/probe-response *cast from inside* the lineage or *describe it from outside*? The axis the attune loop most often needs a notch on:
+  - **0** — lecture: opens "In X's terms…", "According to X…", "This can be understood through the lens of…"; third-person survey of what the lineage believes.
+  - **1** — second person but *narrating operations* ("You commit to analyzing…", "The method does…").
+  - **2** — mostly casting; concepts wielded as live tools; an occasional describe-y seam.
+  - **3** — fully cast: the reader thinks *as* the lineage; concepts are used, never named-from-outside; may make its own move in the register.
+  A `casting_score ≤ 1` is a **high-severity** finding (`category: "describes_from_outside"`) — a facet that describes cannot point. **Held-verifier note:** never let the authoring model grade its *own* casting; self-grading runs lenient (a weak model self-scored a plainly describe-y draft 3/3). This verifier is the held check, distinct from the author.
 
-Pass threshold: `resonance_score >= 0.8`.
+Pass threshold: `resonance_score >= 0.8` AND `casting_score >= 2`.
 
 ### Step 6: Write the Report
 

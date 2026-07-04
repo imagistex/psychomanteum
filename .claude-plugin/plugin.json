@@ -1,6 +1,6 @@
 {
   "name": "psychomanteum",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Build facets—small, dense files that point an LLM at a region of latent space. Compresses canonical corpora into voice-mirrored artifacts via a 7-phase pipeline (init, gather, read, distill, inscribe, attune, bind). Generic substrates; works on any Claude Code instance.",
   "author": {
     "name": "Emma Lirette",
@@ -16,6 +16,7 @@
     "./commands/psychomanteum-attune-chamber.md",
     "./commands/psychomanteum-bind.md",
     "./commands/psychomanteum-eval.md",
+    "./commands/psychomanteum-scry.md",
     "./commands/psychomanteum-status.md"
   ],
   "agents": [

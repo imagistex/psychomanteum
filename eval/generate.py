@@ -341,14 +341,24 @@ def _result(
     capture_method: str,
     ok: bool,
     error: Optional[str],
+    params: Optional[Dict[str, object]] = None,
 ) -> Dict[str, object]:
-    """Uniform return shape. (Kept as a helper so every exit path is identical.)"""
+    """Uniform return shape. (Kept as a helper so every exit path is identical.)
+
+    `params` is a NEW optional key (the sampling-control dict threaded through the
+    adapter contract). It is included on EVERY result so the shape is uniform, but
+    it is purely additive — existing keys are unchanged and existing callers that
+    ignore unknown keys are unaffected. The CLI adapters RECORD params here as a
+    no-op (the Meta-wrapped CLIs take no sampling flags); a future API/local
+    adapter is free to actually CONSUME params and still report what it used.
+    """
     return {
         "output": output,
         "model": model,
         "capture_method": capture_method,
         "ok": ok,
         "error": error,
+        "params": params,
     }
 
 
@@ -538,12 +548,16 @@ def _generate_claude(
     user: str,
     model: str,
     timeout: int,
+    params: Optional[Dict[str, object]] = None,
 ) -> Dict[str, object]:
     capture_method = "headless-claude-code"
 
+    # `params` is RECORDED for provenance but is a NO-OP here: the Meta-wrapped
+    # `claude` CLI exposes no sampling flags, so we do not invent any. The contract
+    # carries it so a future raw-API/local adapter can actually consume it.
     exe = shutil.which("claude")
     if not exe:
-        return _result("", model, capture_method, False, "model unavailable: 'claude' CLI not found on PATH")
+        return _result("", model, capture_method, False, "model unavailable: 'claude' CLI not found on PATH", params)
 
     # Build the invocation. The facet rides the CLEAN --system-prompt channel; the
     # flat probe is the positional prompt. --bare minimizes wrapper contamination;
@@ -569,9 +583,9 @@ def _generate_claude(
         with _host_cli_lock():
             proc = _run_hardkill(cmd, timeout=timeout, input_text="")
     except _HardTimeout:
-        return _result("", model, capture_method, False, "timeout after %ds invoking claude (process group hard-killed)" % timeout)
+        return _result("", model, capture_method, False, "timeout after %ds invoking claude (process group hard-killed)" % timeout, params)
     except (OSError, ValueError) as e:
-        return _result("", model, capture_method, False, "failed to invoke claude: %s" % e)
+        return _result("", model, capture_method, False, "failed to invoke claude: %s" % e, params)
 
     if proc.returncode != 0:
         # Host launcher banners go to STDERR; surface a trimmed tail for diagnosis.
@@ -582,6 +596,7 @@ def _generate_claude(
             capture_method,
             False,
             "claude exited %d: %s" % (proc.returncode, " | ".join(err_tail) or "(no stderr)"),
+            params,
         )
 
     text = _extract_claude_text(proc.stdout)
@@ -591,13 +606,13 @@ def _generate_claude(
         # stdout that fails to parse is unusual — but better to capture than drop).
         raw = (proc.stdout or "").strip()
         if raw:
-            return _result(raw, model, capture_method, True, None)
-        return _result("", model, capture_method, False, "empty output: no result/assistant text in claude JSON and stdout empty")
+            return _result(raw, model, capture_method, True, None, params)
+        return _result("", model, capture_method, False, "empty output: no result/assistant text in claude JSON and stdout empty", params)
 
     if not text.strip():
-        return _result("", model, capture_method, False, "empty output: claude returned an empty result string")
+        return _result("", model, capture_method, False, "empty output: claude returned an empty result string", params)
 
-    return _result(text, model, capture_method, True, None)
+    return _result(text, model, capture_method, True, None, params)
 
 
 # --- codex (optional) -----------------------------------------------------------
@@ -607,12 +622,14 @@ def _generate_codex(
     user: str,
     model: str,
     timeout: int,
+    params: Optional[Dict[str, object]] = None,
 ) -> Dict[str, object]:
     capture_method = "headless-codex"
 
+    # `params` is RECORDED for provenance but a NO-OP here (see _generate_claude).
     exe = shutil.which("codex")
     if not exe:
-        return _result("", model, capture_method, False, "model unavailable: 'codex' CLI not found on PATH")
+        return _result("", model, capture_method, False, "model unavailable: 'codex' CLI not found on PATH", params)
 
     prompt = _combine_system_user(system, user)
 
@@ -631,9 +648,9 @@ def _generate_codex(
             with _host_cli_lock():
                 proc = _run_hardkill(cmd, timeout=timeout, input_text="")
         except _HardTimeout:
-            return _result("", model, capture_method, False, "timeout after %ds invoking codex (process group hard-killed)" % timeout)
+            return _result("", model, capture_method, False, "timeout after %ds invoking codex (process group hard-killed)" % timeout, params)
         except (OSError, ValueError) as e:
-            return _result("", model, capture_method, False, "failed to invoke codex: %s" % e)
+            return _result("", model, capture_method, False, "failed to invoke codex: %s" % e, params)
 
         # Prefer the last-message file (cleanest). Fall back to stdout.
         text = ""
@@ -651,15 +668,16 @@ def _generate_codex(
                 capture_method,
                 False,
                 "codex exited %d: %s" % (proc.returncode, " | ".join(err_tail) or "(no stderr)"),
+                params,
             )
 
         if not text:
             text = (proc.stdout or "").strip()
 
         if not text:
-            return _result("", model, capture_method, False, "empty output: codex produced no final message")
+            return _result("", model, capture_method, False, "empty output: codex produced no final message", params)
 
-        return _result(text, model, capture_method, True, None)
+        return _result(text, model, capture_method, True, None, params)
     finally:
         try:
             os.remove(tmp_path)
@@ -704,12 +722,14 @@ def _generate_gemini(
     user: str,
     model: str,
     timeout: int,
+    params: Optional[Dict[str, object]] = None,
 ) -> Dict[str, object]:
     capture_method = "headless-gemini"
 
+    # `params` is RECORDED for provenance but a NO-OP here (see _generate_claude).
     exe = shutil.which("gemini")
     if not exe:
-        return _result("", model, capture_method, False, "model unavailable: 'gemini' CLI not found on PATH")
+        return _result("", model, capture_method, False, "model unavailable: 'gemini' CLI not found on PATH", params)
 
     prompt = _combine_system_user(system, user)
 
@@ -722,9 +742,9 @@ def _generate_gemini(
         with _host_cli_lock():
             proc = _run_hardkill(cmd, timeout=timeout, input_text="")
     except _HardTimeout:
-        return _result("", model, capture_method, False, "timeout after %ds invoking gemini (process group hard-killed)" % timeout)
+        return _result("", model, capture_method, False, "timeout after %ds invoking gemini (process group hard-killed)" % timeout, params)
     except (OSError, ValueError) as e:
-        return _result("", model, capture_method, False, "failed to invoke gemini: %s" % e)
+        return _result("", model, capture_method, False, "failed to invoke gemini: %s" % e, params)
 
     if proc.returncode != 0:
         err_tail = (proc.stderr or "").strip().splitlines()[-3:]
@@ -734,19 +754,106 @@ def _generate_gemini(
             capture_method,
             False,
             "gemini exited %d: %s" % (proc.returncode, " | ".join(err_tail) or "(no stderr)"),
+            params,
         )
 
     text = _extract_gemini_text(proc.stdout)
     if text is None:
         raw = (proc.stdout or "").strip()
         if raw:
-            return _result(raw, model, capture_method, True, None)
-        return _result("", model, capture_method, False, "empty output: gemini returned no parseable text and stdout empty")
+            return _result(raw, model, capture_method, True, None, params)
+        return _result("", model, capture_method, False, "empty output: gemini returned no parseable text and stdout empty", params)
 
     if not text.strip():
-        return _result("", model, capture_method, False, "empty output: gemini returned an empty response")
+        return _result("", model, capture_method, False, "empty output: gemini returned an empty response", params)
 
-    return _result(text, model, capture_method, True, None)
+    return _result(text, model, capture_method, True, None, params)
+
+
+# --- adapter registry -----------------------------------------------------------
+#
+# Generalizes the old hardcoded if/elif dispatch (claude/codex/gemini) into a small
+# open registry so a FUTURE provider (hosted API, local Ollama/HF) can be added
+# WITHOUT editing generate()'s dispatch — it just calls register_adapter(...) at
+# import time. The routing behavior is UNCHANGED: the resolver below reproduces the
+# exact mapping the if/elif encoded.
+#
+# Adapter contract (every registered callable obeys this signature and return shape):
+#     (system: str, user: str, model: str, timeout: int,
+#      params: dict | None) -> dict          # the SAME dict _result(...) builds
+#
+# The three existing backends already match this contract (each now takes `params`),
+# so they are registered directly — no wrappers.
+
+# provider key -> adapter callable
+_ADAPTERS: Dict[str, object] = {
+    "claude": _generate_claude,
+    "codex": _generate_codex,
+    "gemini": _generate_gemini,
+}
+
+
+def register_adapter(provider: str, fn) -> None:
+    """Register (or override) the adapter callable for a provider key.
+
+    PUBLIC extension hook: a future provider (raw Anthropic API, local Ollama/HF,
+    etc.) registers itself here — no edit to generate()'s dispatch is needed. `fn`
+    MUST honor the adapter contract:
+
+        fn(system: str, user: str, model: str, timeout: int,
+           params: dict | None) -> dict   # same shape as _result(...)
+
+    To make a NEW provider routable by model-string, ALSO teach `_resolve_provider`
+    (or pass a model string that already resolves to `provider`). Registering an
+    adapter under a brand-new key that the resolver never returns is harmless but
+    unreachable via model-string routing until the resolver knows about it.
+
+    Raises TypeError if `provider` is not a non-empty str or `fn` is not callable.
+    """
+    if not isinstance(provider, str) or not provider.strip():
+        raise TypeError("register_adapter(provider, fn): provider must be a non-empty str")
+    if not callable(fn):
+        raise TypeError("register_adapter(provider, fn): fn must be callable")
+    _ADAPTERS[provider.strip().lower()] = fn
+
+
+def _resolve_provider(model: str) -> str:
+    """Map a model-string to a provider key, preserving the EXACT old routing.
+
+    Old if/elif (verbatim behavior):
+      - "codex"  -> codex
+      - "gemini" -> gemini
+      - everything else (default sentinel, "claude"/"claude-code"/"", explicit
+        Claude model ids/aliases like "opus"/"claude-opus-4-8") -> claude
+
+    Note the per-backend "default" sentinels are handled INSIDE each adapter (codex
+    skips -m for {"codex","headless-codex"}; gemini for {"gemini","headless-gemini"};
+    claude skips --model for _CLAUDE_DEFAULT_ALIASES). The resolver only chooses the
+    PROVIDER; sentinel-to-default-model handling stays where it always was.
+    """
+    key = (model or "").strip().lower()
+    if key == "codex" or key == "headless-codex":
+        return "codex"
+    if key == "gemini" or key == "headless-gemini":
+        return "gemini"
+    # Local open-weight models route via an `ollama:` prefix (e.g.
+    # "ollama:qwen2.5:7b-instruct"). The ollama adapter strips the prefix to
+    # recover the real tag. Registered out-of-tree (eval/harnesses/ollama.py).
+    if key == "ollama" or key.startswith("ollama:"):
+        return "ollama"
+    # talkie-1930 served by a faithful llama-server (OpenAI API). Custom arch that
+    # loads only in thomasgauthier/llama.cpp@talkie-1930 on CPU; routed via a
+    # `talkie:` prefix. Registered out-of-tree (eval/harnesses/talkie_server.py).
+    if key == "talkie" or key.startswith("talkie:"):
+        return "talkie"
+    # Raw Anthropic API — the un-deferred API adapter: a CLEAN (system, user)
+    # channel for frontier Claude weights (vs the contaminated `claude` CLI).
+    # Routed via an `anthropic:` prefix, e.g. "anthropic:claude-fable-5".
+    # Registered out-of-tree (eval/harnesses/anthropic_api.py).
+    if key == "anthropic" or key.startswith("anthropic:"):
+        return "anthropic"
+    # Default + "claude"/"claude-code"/"" + explicit Claude ids/aliases -> claude.
+    return "claude"
 
 
 # --- public entry point ---------------------------------------------------------
@@ -756,15 +863,24 @@ def generate(
     user: str,
     model: str = "headless-claude-code",
     timeout: int = 180,
+    params: Optional[Dict[str, object]] = None,
 ) -> Dict[str, object]:
     """
     Capture a real, fresh, facet-conditioned generation on the clean (system, user)
     pair. See module docstring for the full contract and contamination caveats.
 
-    Routing:
+    Routing (via the adapter registry; see register_adapter / _resolve_provider):
       - "headless-claude-code" (default) or a Claude model id/alias -> headless claude
       - "codex"  -> headless codex   (if installed)
       - "gemini" -> headless gemini  (if installed)
+    Future providers register an adapter and (if model-string routable) extend the
+    resolver — no edit to this dispatch.
+
+    `params` is an OPTIONAL sampling-control dict threaded through to the adapter and
+    recorded on the result (result["params"]). It is a NO-OP for the CLI adapters
+    (the Meta-wrapped CLIs take no sampling flags); the contract carries it for a
+    future API/local adapter that will consume it. Omitting it preserves today's
+    behavior exactly.
 
     Returns the result dict; never raises on operational failure (returns ok=False).
     """
@@ -773,12 +889,30 @@ def generate(
         raise TypeError("generate(system, user, ...) requires str system and str user")
 
     m = (model or "").strip() or "headless-claude-code"
-    key = m.lower()
 
-    if key == "codex":
-        return _generate_codex(system, user, m, timeout)
-    if key == "gemini":
-        return _generate_gemini(system, user, m, timeout)
+    provider = _resolve_provider(m)
+    adapter = _ADAPTERS.get(provider)
+    if adapter is None:
+        # Only reachable if a resolver returns a key with no registered adapter
+        # (e.g. someone extended the resolver but forgot register_adapter). Fail
+        # operationally — same no-raise contract as every other failure path.
+        return _result(
+            "", m, "unknown",
+            False,
+            "no adapter registered for provider %r (model %r)" % (provider, m),
+            params,
+        )
+    return adapter(system, user, m, timeout, params)
 
-    # Default path: headless Claude Code (also handles explicit Claude model ids).
-    return _generate_claude(system, user, m, timeout)
+
+# --- optional out-of-tree adapters ----------------------------------------------
+#
+# Register optional local/API adapters (eval/harnesses/) via import side-effect.
+# BEST-EFFORT: a missing optional dependency must never break the core CLI
+# adapters above, so any failure here is swallowed. eval/ is on sys.path[0] in
+# this codebase (cli.py / generation_driver bootstrap), so the bare import
+# resolves; each adapter imports its heavy dep lazily so registration won't fail.
+try:
+    import harnesses as _harnesses  # noqa: F401
+except Exception:
+    pass

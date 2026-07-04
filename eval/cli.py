@@ -19,6 +19,8 @@ Commands (json-args map to the underlying function's keyword arguments):
     verbatim-echo     {"texts": [...], "corpus_passages": [...], "n_lo"?: 4, "n_hi"?: 8}  -> [{echo_fraction, per_n, longest_verbatim_span_tokens, ...}]
     semantic-echo     {"texts": [...], "corpus_passages": [...], "min_chars"?: 12}  -> [{semantic_echo_max, semantic_echo_mean, available, ...}]
     parse-claude      {"stdout": "<raw claude --output-format json stdout>"}  -> {text, ok, error}
+    scry-estimate     {"n_models": 2, "n_probes": 11}  -> multi-model cost estimate (M3 gate)
+    scry-aggregate    {"run_dir": "eval-runs/scry-..."}  -> compact summary (writes scry-dashboard.json)
 
 Sign convention: paired-stats `mean_shift` (and fit-transfer's `style_shift` y-axis)
 are toward-corpus POSITIVE — mean(baseline_dist - facet_dist). Optional
@@ -41,6 +43,8 @@ import sys
 
 import metrics
 import generate as gen
+import scry
+import scry_aggregate
 
 
 def _dispatch(cmd: str, payload: dict):
@@ -62,6 +66,10 @@ def _dispatch(cmd: str, payload: dict):
         # of a judge's prose-wrapped reply, string-aware (apostrophes/braces inside
         # string values can't break the brace match). Replaces ad-hoc brace-counting.
         "extract-json": lambda: gen.extract_json_object(**payload),
+        # multi-model SCRY: dry-run cost estimate (M3 gate) + per-model dashboard
+        # aggregation into scry-dashboard.json (returns a compact summary).
+        "scry-estimate": lambda: scry.estimate_cost(**payload),
+        "scry-aggregate": lambda: scry_aggregate.aggregate_summary(**payload),
     }
     if cmd not in table:
         return {"error": f"unknown command '{cmd}'", "available": sorted(table)}
@@ -75,7 +83,8 @@ def main(argv=None) -> int:
                           "commands": ["generate", "style-distance", "content-distance",
                                        "paired-stats", "fit-transfer", "collapse-rate",
                                        "confound-check", "verbatim-echo", "semantic-echo",
-                                       "parse-claude"]}))
+                                       "parse-claude", "extract-json",
+                                       "scry-estimate", "scry-aggregate"]}))
         return 2
     cmd = argv[1]
     try:

@@ -247,6 +247,207 @@ def test_paired_stats() -> None:
 
 
 # --------------------------------------------------------------------------- #
+# 3b. enact_delta — describe-vs-enact difference-in-differences (the verb axis).
+#
+# Two regimes, both locked here:
+#   (a) a facet that ALREADY enacts under 'describe' (its facet-lift is the same
+#       whether the prompt says describe or enact) => facet_induced_delta ~ 0
+#       (the IDEAL: prompt-independent enactment).
+#   (b) a facet that enacts ONLY under 'enact' (no facet-lift under describe, a
+#       big facet-lift under enact) => a LARGE positive facet_induced_delta
+#       (weak: the facet needs the prompt to command it).
+# Plus the scale-mix guard (a 0-1-vs-0-3 mix must FAIL LOUDLY, not fabricate a
+# delta) and the sign convention (toward-corpus POSITIVE, like paired_stats).
+# --------------------------------------------------------------------------- #
+def _enact_records(per_kw):
+    """Build the list-of-records input from {keyword: {(cond,verb): score}}."""
+    recs = []
+    for kw, cell in per_kw.items():
+        for (cond, verb), score in cell.items():
+            recs.append({"keyword": kw, "condition": cond, "verb": verb,
+                         "score": score})
+    return recs
+
+
+def test_enact_delta() -> None:
+    section("enact_delta (describe-vs-enact difference-in-differences)")
+
+    # --- REGIME (a): the facet ALREADY enacts under 'describe'. ---
+    # Per keyword: facet scores high under BOTH verbs; baseline low under both;
+    # crucially the facet's lift over baseline is the SAME size whether the prompt
+    # said describe or enact => facet_induced_delta ~ 0. (There is a prompt_lift —
+    # the bare model enacts a bit more when told "enact" — but it cancels in the
+    # diff-in-diff because it lifts the facet condition by the same amount.)
+    already = {
+        "loss":   {("facet", "describe"): 0.80, ("facet", "enact"): 0.90,
+                   ("baseline", "describe"): 0.30, ("baseline", "enact"): 0.40},
+        "power":  {("facet", "describe"): 0.75, ("facet", "enact"): 0.85,
+                   ("baseline", "describe"): 0.25, ("baseline", "enact"): 0.35},
+        "memory": {("facet", "describe"): 0.70, ("facet", "enact"): 0.80,
+                   ("baseline", "describe"): 0.20, ("baseline", "enact"): 0.30},
+    }
+    res_a = metrics.enact_delta(_enact_records(already))
+    print(f"  (a) already-enacts: facet_lift_describe="
+          f"{res_a['facet_lift_describe']:.3f}  facet_lift_enact="
+          f"{res_a['facet_lift_enact']:.3f}  facet_induced_delta="
+          f"{res_a['facet_induced_delta']:.3f}  prompt_lift="
+          f"{res_a['prompt_lift']:.3f}")
+
+    # THE IDEAL LOCK: facet_induced_delta ~ 0 (enacts regardless of the prompt).
+    check(
+        "(a) facet that already enacts under 'describe' -> facet_induced_delta ~ 0",
+        abs(res_a["facet_induced_delta"]) < 1e-9,
+        f"facet_induced_delta = {res_a['facet_induced_delta']:.6f}",
+    )
+    # The facet genuinely lifts enactment (this is not a dead facet) under describe.
+    check(
+        "(a) facet still shows a real toward-corpus facet_lift_describe (> 0)",
+        res_a["facet_lift_describe"] > 0,
+        f"facet_lift_describe = {res_a['facet_lift_describe']:.4f}",
+    )
+    # The pure verb effect is captured separately and is positive here.
+    check(
+        "(a) prompt_lift captures the bare verb effect (> 0)",
+        res_a["prompt_lift"] > 0,
+        f"prompt_lift = {res_a['prompt_lift']:.4f}",
+    )
+
+    # --- REGIME (b): the facet enacts ONLY under 'enact'. ---
+    # Per keyword: under 'describe' the facet is no better than baseline (no
+    # facet_lift_describe); under 'enact' the facet jumps well above baseline
+    # (big facet_lift_enact) => a LARGE positive facet_induced_delta.
+    only = {
+        "loss":   {("facet", "describe"): 0.30, ("facet", "enact"): 0.90,
+                   ("baseline", "describe"): 0.30, ("baseline", "enact"): 0.40},
+        "power":  {("facet", "describe"): 0.25, ("facet", "enact"): 0.85,
+                   ("baseline", "describe"): 0.25, ("baseline", "enact"): 0.35},
+        "memory": {("facet", "describe"): 0.20, ("facet", "enact"): 0.80,
+                   ("baseline", "describe"): 0.20, ("baseline", "enact"): 0.30},
+    }
+    res_b = metrics.enact_delta(_enact_records(only))
+    print(f"  (b) enact-only:    facet_lift_describe="
+          f"{res_b['facet_lift_describe']:.3f}  facet_lift_enact="
+          f"{res_b['facet_lift_enact']:.3f}  facet_induced_delta="
+          f"{res_b['facet_induced_delta']:.3f}")
+
+    # THE WEAK-FACET LOCK: a large positive facet_induced_delta.
+    check(
+        "(b) facet that enacts only under 'enact' -> large positive facet_induced_delta",
+        res_b["facet_induced_delta"] > 0.4,
+        f"facet_induced_delta = {res_b['facet_induced_delta']:.4f}",
+    )
+    check(
+        "(b) no facet-lift under describe (~0) but a big lift under enact",
+        abs(res_b["facet_lift_describe"]) < 1e-9
+        and res_b["facet_lift_enact"] > 0.4,
+        f"describe={res_b['facet_lift_describe']:.4f}, "
+        f"enact={res_b['facet_lift_enact']:.4f}",
+    )
+    # The two regimes are clearly separated by the headline.
+    check(
+        "(b) enact-only delta >> already-enacts delta (regimes separate)",
+        res_b["facet_induced_delta"] - res_a["facet_induced_delta"] > 0.4,
+        f"{res_b['facet_induced_delta']:.4f} vs {res_a['facet_induced_delta']:.4f}",
+    )
+
+    # --- Envelope / contract. ---
+    check(
+        "returns required keys",
+        all(k in res_b for k in ("per_pair", "prompt_lift", "facet_lift_describe",
+                                 "facet_lift_enact", "facet_induced_delta",
+                                 "ci", "n")),
+        str(sorted(res_b.keys())),
+    )
+    check(
+        "n == number of keywords; per_pair has one entry per keyword",
+        res_b["n"] == 3 and set(res_b["per_pair"]) == {"loss", "power", "memory"},
+        f"n={res_b['n']}, keys={sorted(res_b['per_pair'])}",
+    )
+    # CI brackets each aggregate point estimate.
+    check(
+        "bootstrap CI brackets facet_induced_delta",
+        res_b["ci"]["facet_induced_delta"][0] <= res_b["facet_induced_delta"]
+        <= res_b["ci"]["facet_induced_delta"][1],
+        f"{res_b['ci']['facet_induced_delta']} vs {res_b['facet_induced_delta']:.4f}",
+    )
+    # Per-pair identity: facet_induced_delta == facet_lift_enact - facet_lift_describe.
+    pk = res_b["per_pair"]["loss"]
+    check(
+        "per-pair identity: induced_delta == lift_enact - lift_describe",
+        abs(pk["facet_induced_delta"]
+            - (pk["facet_lift_enact"] - pk["facet_lift_describe"])) < 1e-12,
+        f"delta={pk['facet_induced_delta']:.4f}",
+    )
+
+    # --- Determinism (seeded bootstrap), like paired_stats. ---
+    res_b2 = metrics.enact_delta(_enact_records(only))
+    check(
+        "enact_delta bootstrap is deterministic (seeded)",
+        res_b2["ci"]["facet_induced_delta"] == res_b["ci"]["facet_induced_delta"],
+        str(res_b2["ci"]["facet_induced_delta"]),
+    )
+
+    # --- Nested-dict input ({keyword:{condition:{verb:score}}}) is accepted and
+    # equals the records form built from the same numbers. ---
+    only_nested = {}
+    for kw, cell in only.items():
+        nested = {}
+        for (cond, verb), score in cell.items():
+            nested.setdefault(cond, {})[verb] = score
+        only_nested[kw] = nested
+    res_nested = metrics.enact_delta(only_nested)
+    check(
+        "nested dict input equals the records form",
+        abs(res_nested["facet_induced_delta"] - res_b["facet_induced_delta"]) < 1e-12,
+        f"{res_nested['facet_induced_delta']:.6f}",
+    )
+
+    # --- THE SCALE TRAP: a 0-1-vs-0-3 scale mix must FAIL LOUDLY. ---
+    mixed = dict(only)
+    mixed_recs = _enact_records(mixed)
+    mixed_recs.append({"keyword": "scaleburst", "condition": "facet",
+                       "verb": "enact", "score": 3.0})  # 0-3 scale leak
+    raised_scale = False
+    try:
+        metrics.enact_delta(mixed_recs)
+    except ValueError:
+        raised_scale = True
+    check(
+        "a 0-3-vs-0-1 scale mix raises ValueError (no fabricated delta)",
+        raised_scale,
+    )
+
+    # --- Missing-cell and empty inputs raise (the grid must be complete). ---
+    raised_missing = False
+    try:
+        metrics.enact_delta([
+            {"keyword": "k", "condition": "facet", "verb": "describe", "score": 0.5},
+            {"keyword": "k", "condition": "facet", "verb": "enact", "score": 0.6},
+            # baseline cells missing -> diff-in-diff undefined
+        ])
+    except ValueError:
+        raised_missing = True
+    check("incomplete 2x2 grid raises ValueError", raised_missing)
+
+    raised_empty = False
+    try:
+        metrics.enact_delta([])
+    except ValueError:
+        raised_empty = True
+    check("empty scores raises ValueError", raised_empty)
+
+    # --- Bad verb / condition label raises. ---
+    raised_badverb = False
+    try:
+        metrics.enact_delta([
+            {"keyword": "k", "condition": "facet", "verb": "perform", "score": 0.5},
+        ])
+    except ValueError:
+        raised_badverb = True
+    check("unknown verb label raises ValueError", raised_badverb)
+
+
+# --------------------------------------------------------------------------- #
 # 4. fit_transfer — flat vs decaying vs breakdown, both tiers.
 # --------------------------------------------------------------------------- #
 def test_fit_transfer() -> None:
@@ -1278,6 +1479,7 @@ def main() -> int:
         test_style_distance,
         test_content_distance,
         test_paired_stats,
+        test_enact_delta,
         test_fit_transfer,
         test_collapse_rate,
         test_integration_pipeline,

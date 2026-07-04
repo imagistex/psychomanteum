@@ -1017,6 +1017,287 @@ def paired_stats(facet_vals: List[float],
 
 
 # --------------------------------------------------------------------------- #
+# ENACT delta — the describe-vs-enact difference-in-differences (the verb axis).
+#
+# The describe/enact axis asks: does the facet ENACT its lineage on its own, or
+# only when the PROMPT commands it to? The metric is a DIFFERENCE-IN-DIFFERENCES
+# over the scorer's per-(keyword) Enactment judgments (each in [0,1]), captured
+# under two verb framings (`describe` / `enact`) x two conditions (`facet` /
+# `baseline`). For each keyword k:
+#
+#     prompt_lift         = E(baseline, enact)  - E(baseline, describe)
+#     facet_lift_describe = E(facet,   describe)- E(baseline, describe)
+#     facet_lift_enact    = E(facet,   enact)   - E(baseline, enact)
+#     facet_induced_delta = facet_lift_enact    - facet_lift_describe
+#
+# `prompt_lift` is the pure VERB effect (the axis control: how much the bare
+# model enacts more when simply told "Enact ..." vs "Describe ..."). The headline
+# is `facet_induced_delta`: a LARGE positive value means the facet only enacts
+# when the prompt commands it (weak, prompt-dependent); a NEAR-ZERO value with a
+# real `facet_lift_describe` means the facet already enacts under plain "describe"
+# (the IDEAL: robust, prompt-independent enactment). Toward-corpus is POSITIVE,
+# matching `paired_stats` (a facet that moves a score UP relative to its control
+# yields a positive lift).
+#
+# THE SCALE TRAP (a known, load-bearing hazard): the diff-in-diff is only valid
+# if every Enactment judgment is on the SAME [0,1] scale. A mix (e.g. some cells
+# scored 0-3, others 0-1) FABRICATES a spurious delta — a 0-3 cell looks like a
+# huge "lift" over a 0-1 cell purely from the scale change. So `enact_delta`
+# VALIDATES every input score is in [0,1] and FAILS LOUDLY otherwise. Pure-
+# numeric (numpy only), no LLM, deterministic seeded bootstrap (default_rng(0)),
+# exactly like `paired_stats`.
+# --------------------------------------------------------------------------- #
+_ENACT_CONDITIONS = ("facet", "baseline")
+_ENACT_VERBS = ("describe", "enact")
+
+
+def _coerce_enact_score(value, where: str) -> float:
+    """Coerce one Enactment score to a float in [0,1] or raise loudly.
+
+    The scale trap: a 0-3-vs-0-1 mix fabricates a spurious delta, so every score
+    MUST already be on the [0,1] Enactment scale. A NaN, a non-number, or any
+    value outside [0,1] is a calling/scoring bug, not data to silently clamp.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(
+            "enact_delta: Enactment score must be a number in [0,1] (%s got "
+            "%r). Enactment is scored on a 0-1 scale; a non-number is a bug."
+            % (where, value))
+    v = float(value)
+    if not math.isfinite(v):
+        raise ValueError(
+            "enact_delta: Enactment score must be finite (%s got %r)."
+            % (where, value))
+    if v < 0.0 or v > 1.0:
+        raise ValueError(
+            "enact_delta: Enactment score %r at %s is outside [0,1]. Every "
+            "score must be on the SAME 0-1 Enactment scale — a 0-3-vs-0-1 mix "
+            "fabricates a spurious difference-in-differences delta. Rescale to "
+            "[0,1] before calling." % (value, where))
+    return v
+
+
+def _parse_enact_scores(scores) -> Dict[str, Dict[Tuple[str, str], float]]:
+    """Validate the enact-score input and index it as {keyword: {(cond,verb): E}}.
+
+    Input schema (a list of records — the shape the scorer emits):
+
+        [{"keyword": "loss", "condition": "facet"|"baseline",
+          "verb": "describe"|"enact", "score": <float in [0,1]>}, ...]
+
+    A `dict` mapping keyword -> {"facet": {"describe": x, "enact": y},
+    "baseline": {...}} is ALSO accepted (the nested form). Either way EVERY
+    keyword must carry the full 2x2 grid (facet/baseline x describe/enact); a
+    missing or duplicate cell raises (the diff-in-diff is undefined otherwise).
+    """
+    grid: Dict[str, Dict[Tuple[str, str], float]] = {}
+
+    def _put(keyword, condition, verb, score):
+        kw = str(keyword)
+        cond = str(condition)
+        vb = str(verb)
+        if cond not in _ENACT_CONDITIONS:
+            raise ValueError(
+                "enact_delta: condition must be one of %s (keyword %r got %r)."
+                % (list(_ENACT_CONDITIONS), kw, cond))
+        if vb not in _ENACT_VERBS:
+            raise ValueError(
+                "enact_delta: verb must be one of %s (keyword %r got %r)."
+                % (list(_ENACT_VERBS), kw, vb))
+        cell = grid.setdefault(kw, {})
+        key = (cond, vb)
+        if key in cell:
+            raise ValueError(
+                "enact_delta: duplicate score for keyword %r (%s, %s)."
+                % (kw, cond, vb))
+        cell[key] = _coerce_enact_score(
+            score, "keyword %r (%s, %s)" % (kw, cond, vb))
+
+    if isinstance(scores, dict):
+        for keyword, conds in scores.items():
+            if not isinstance(conds, dict):
+                raise ValueError(
+                    "enact_delta: nested form needs keyword -> {condition -> "
+                    "{verb -> score}} (keyword %r got %r)." % (keyword, conds))
+            for condition, verbs in conds.items():
+                if not isinstance(verbs, dict):
+                    raise ValueError(
+                        "enact_delta: nested form needs condition -> {verb -> "
+                        "score} (keyword %r, condition %r got %r)."
+                        % (keyword, condition, verbs))
+                for verb, score in verbs.items():
+                    _put(keyword, condition, verb, score)
+    elif isinstance(scores, (list, tuple)):
+        for i, rec in enumerate(scores):
+            if not isinstance(rec, dict):
+                raise ValueError(
+                    "enact_delta: each score record must be a dict with "
+                    "keyword/condition/verb/score (index %d got %r)." % (i, rec))
+            try:
+                keyword = rec["keyword"]
+                condition = rec["condition"]
+                verb = rec["verb"]
+                score = rec["score"]
+            except KeyError as e:
+                raise ValueError(
+                    "enact_delta: score record %d missing required key %s "
+                    "(need keyword/condition/verb/score)." % (i, e))
+            _put(keyword, condition, verb, score)
+    else:
+        raise ValueError(
+            "enact_delta: `scores` must be a list of {keyword,condition,verb,"
+            "score} records or the nested keyword->condition->verb dict (got "
+            "%s)." % type(scores).__name__)
+
+    if not grid:
+        raise ValueError("enact_delta: need at least one keyword's scores.")
+
+    # Every keyword needs the full 2x2 grid or its diff-in-diff is undefined.
+    required = {(c, v) for c in _ENACT_CONDITIONS for v in _ENACT_VERBS}
+    for kw, cell in grid.items():
+        missing = required - set(cell)
+        if missing:
+            pretty = ", ".join("%s/%s" % (c, v) for c, v in sorted(missing))
+            raise ValueError(
+                "enact_delta: keyword %r is missing cell(s): %s. Each keyword "
+                "needs all four facet/baseline x describe/enact scores."
+                % (kw, pretty))
+    return grid
+
+
+def enact_delta(scores,
+                n_boot: int = 10000,
+                ci: float = 0.95) -> Dict:
+    """Describe-vs-enact difference-in-differences over per-keyword Enactment.
+
+    Consumes the SCORER's per-keyword Enactment judgments (each in [0,1]) under
+    the 2x2 grid of condition (facet/baseline) x verb (describe/enact) and
+    returns the verb-axis decomposition per keyword and in aggregate. It NEVER
+    calls an LLM — it only does arithmetic on judgments the scorer produced.
+
+    Input (`scores`): a list of records (the canonical form) ::
+
+        [{"keyword": "loss", "condition": "facet",    "verb": "describe", "score": 0.4},
+         {"keyword": "loss", "condition": "facet",    "verb": "enact",    "score": 0.5},
+         {"keyword": "loss", "condition": "baseline", "verb": "describe", "score": 0.1},
+         {"keyword": "loss", "condition": "baseline", "verb": "enact",    "score": 0.3},
+         ... (one such 2x2 block per keyword) ]
+
+    or equivalently the nested dict
+    ``{keyword: {condition: {verb: score}}}``. Every keyword MUST carry the full
+    2x2 grid; every score MUST be in [0,1] (a 0-3-vs-0-1 scale mix fabricates a
+    spurious delta and is rejected — see the section comment).
+
+    Per keyword and as the aggregate MEAN across keywords:
+        prompt_lift         = E(baseline,enact)  - E(baseline,describe)
+        facet_lift_describe = E(facet,describe)  - E(baseline,describe)
+        facet_lift_enact    = E(facet,enact)     - E(baseline,enact)
+        facet_induced_delta = facet_lift_enact   - facet_lift_describe
+    Toward-corpus POSITIVE (a higher Enactment score than the control = a
+    positive lift), matching `paired_stats`'s sign convention.
+
+    Returns::
+
+        {
+          "per_pair": {keyword: {prompt_lift, facet_lift_describe,
+                                 facet_lift_enact, facet_induced_delta,
+                                 E_facet_describe, E_facet_enact,
+                                 E_baseline_describe, E_baseline_enact}, ...},
+          "prompt_lift": float,           # aggregate means across keywords
+          "facet_lift_describe": float,
+          "facet_lift_enact": float,
+          "facet_induced_delta": float,   # the headline
+          "ci": {                         # seeded bootstrap CI per aggregate
+            "prompt_lift": [lo, hi],
+            "facet_lift_describe": [lo, hi],
+            "facet_lift_enact": [lo, hi],
+            "facet_induced_delta": [lo, hi],
+          },
+          "n": int,                       # number of keywords (pairs)
+          "n_boot": int,
+        }
+
+    Determinism: the ONLY randomness is the seeded bootstrap (default_rng(0)),
+    exactly as `paired_stats`.
+    """
+    grid = _parse_enact_scores(scores)
+
+    keywords = sorted(grid)
+    per_pair: Dict[str, Dict[str, float]] = {}
+    # Parallel arrays (one entry per keyword) for the aggregate + bootstrap.
+    prompt_lift_arr: List[float] = []
+    facet_lift_describe_arr: List[float] = []
+    facet_lift_enact_arr: List[float] = []
+    facet_induced_delta_arr: List[float] = []
+
+    for kw in keywords:
+        cell = grid[kw]
+        e_fd = cell[("facet", "describe")]
+        e_fe = cell[("facet", "enact")]
+        e_bd = cell[("baseline", "describe")]
+        e_be = cell[("baseline", "enact")]
+
+        prompt_lift = e_be - e_bd
+        facet_lift_describe = e_fd - e_bd
+        facet_lift_enact = e_fe - e_be
+        facet_induced_delta = facet_lift_enact - facet_lift_describe
+
+        prompt_lift_arr.append(prompt_lift)
+        facet_lift_describe_arr.append(facet_lift_describe)
+        facet_lift_enact_arr.append(facet_lift_enact)
+        facet_induced_delta_arr.append(facet_induced_delta)
+
+        per_pair[kw] = {
+            "prompt_lift": float(prompt_lift),
+            "facet_lift_describe": float(facet_lift_describe),
+            "facet_lift_enact": float(facet_lift_enact),
+            "facet_induced_delta": float(facet_induced_delta),
+            "E_facet_describe": float(e_fd),
+            "E_facet_enact": float(e_fe),
+            "E_baseline_describe": float(e_bd),
+            "E_baseline_enact": float(e_be),
+        }
+
+    n = len(keywords)
+
+    # Seeded percentile bootstrap CI of each aggregate mean — ONE rng, drawn
+    # once over keyword indices so the four aggregates share resamples (they are
+    # the same keywords) and the result is deterministic (default_rng(0)), just
+    # like `paired_stats`.
+    rng = np.random.default_rng(0)
+    metrics_arrs = {
+        "prompt_lift": np.asarray(prompt_lift_arr, dtype=np.float64),
+        "facet_lift_describe": np.asarray(facet_lift_describe_arr, dtype=np.float64),
+        "facet_lift_enact": np.asarray(facet_lift_enact_arr, dtype=np.float64),
+        "facet_induced_delta": np.asarray(facet_induced_delta_arr, dtype=np.float64),
+    }
+    alpha = (1.0 - ci) / 2.0
+    ci_out: Dict[str, List[float]] = {}
+    if n > 1:
+        idx = rng.integers(0, n, size=(n_boot, n))
+        for key, arr in metrics_arrs.items():
+            boot_means = arr[idx].mean(axis=1)
+            ci_out[key] = [float(np.percentile(boot_means, 100 * alpha)),
+                           float(np.percentile(boot_means, 100 * (1.0 - alpha)))]
+    else:
+        # Single keyword: CI degenerate at the point estimate.
+        for key, arr in metrics_arrs.items():
+            point = float(arr.mean())
+            ci_out[key] = [point, point]
+
+    return {
+        "per_pair": per_pair,
+        "prompt_lift": float(metrics_arrs["prompt_lift"].mean()),
+        "facet_lift_describe": float(metrics_arrs["facet_lift_describe"].mean()),
+        "facet_lift_enact": float(metrics_arrs["facet_lift_enact"].mean()),
+        "facet_induced_delta": float(metrics_arrs["facet_induced_delta"].mean()),
+        "ci": ci_out,
+        "n": int(n),
+        "n_boot": int(n_boot),
+    }
+
+
+# --------------------------------------------------------------------------- #
 # Transfer curve — style-shift (y) vs measured content-distance (x).
 # --------------------------------------------------------------------------- #
 # Classification thresholds (documented, tunable). style_shift here is the
@@ -1597,6 +1878,7 @@ def _cli() -> None:  # pragma: no cover - thin dispatch
         "style_distance": lambda: style_distance_introspect(**payload),
         "content_distance": lambda: content_distance_introspect(**payload),
         "paired_stats": lambda: paired_stats(**payload),
+        "enact_delta": lambda: enact_delta(**payload),
         "fit_transfer": lambda: fit_transfer(**payload),
         "collapse_rate": lambda: collapse_rate(**payload),
         "centroid_confound_check": lambda: centroid_confound_check(**payload),
